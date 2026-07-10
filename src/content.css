@@ -15,6 +15,11 @@
   display: none;
 }
 
+#movie_player.html5-video-player:hover:not(.ytp-autohide)
+  > #my-youtube-progress {
+  display: none;
+}
+
 #my-youtube-progress-buffered,
 #my-youtube-progress-played {
   position: absolute;

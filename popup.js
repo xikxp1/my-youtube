@@ -30,7 +30,7 @@
     });
 
     try {
-      await chrome.storage.sync.set(settings);
+      await chrome.storage.local.set(settings);
       render(settings);
       showStatus("Saved and applied to open videos");
     } catch {
@@ -42,7 +42,7 @@
     input.addEventListener("change", saveSettings);
   }
 
-  chrome.storage.sync
+  chrome.storage.local
     .get(DEFAULT_SETTINGS)
     .then((stored) => render(normalizeSettings(stored)))
     .catch(() => {

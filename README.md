@@ -5,6 +5,6 @@ standard YouTube watch pages.
 
 ## Features
 
-- A permanent 3px played/buffered progress bar at the bottom of the video.
+- A 3px played/buffered progress bar shown while video controls are hidden.
 - A default playback speed for every newly loaded video.
 - A preferred video quality with closest-lower fallback.

@@ -514,10 +514,7 @@
   observer.observe(document, { childList: true, subtree: true });
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    // Some Chromium-compatible environments expose sync storage through a
-    // local-storage shim. Accept both event names while keeping one settings
-    // schema and one write path in the popup.
-    if (areaName !== "sync" && areaName !== "local") {
+    if (areaName !== "local") {
       return;
     }
 
@@ -532,7 +529,7 @@
     forceApplyChangedSettings(previousSettings);
   });
 
-  chrome.storage.sync
+  chrome.storage.local
     .get(DEFAULT_SETTINGS)
     .then((stored) => {
       state.settings = normalizeSettings(stored);
