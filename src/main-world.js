@@ -10,16 +10,9 @@
   });
 
   const MESSAGE_SOURCE = "my-youtube:v1";
-  const ALLOWED_PLAYBACK_RATES = new Set([
-    0.25,
-    0.5,
-    0.75,
-    1,
-    1.25,
-    1.5,
-    1.75,
-    2,
-  ]);
+  const PLAYBACK_RATE_MIN_HUNDREDTHS = 5;
+  const PLAYBACK_RATE_MAX_HUNDREDTHS = 400;
+  const PLAYBACK_RATE_STEP_HUNDREDTHS = 5;
   const QUALITY_CODES = Object.freeze({
     144: "tiny",
     240: "small",
@@ -56,6 +49,22 @@
     "2160",
     "4320",
   ]);
+
+  function isValidPlaybackRate(value) {
+    const playbackRate = Number(value);
+    if (!Number.isFinite(playbackRate)) {
+      return false;
+    }
+
+    const scaledRate = playbackRate * 100;
+    const rateInHundredths = Math.round(scaledRate);
+    return (
+      Math.abs(scaledRate - rateInHundredths) < 1e-8 &&
+      rateInHundredths >= PLAYBACK_RATE_MIN_HUNDREDTHS &&
+      rateInHundredths <= PLAYBACK_RATE_MAX_HUNDREDTHS &&
+      rateInHundredths % PLAYBACK_RATE_STEP_HUNDREDTHS === 0
+    );
+  }
 
   function toQualityEntry(value) {
     if (typeof value === "number" && Number.isFinite(value)) {
@@ -163,6 +172,11 @@
   }
 
   function applySpeed(targetRate, documentObject) {
+    const playbackRate = Number(targetRate);
+    if (!isValidPlaybackRate(playbackRate)) {
+      return { success: false, retryable: false, reason: "invalid-speed" };
+    }
+
     const player = documentObject.querySelector(
       "#movie_player, .html5-video-player",
     );
@@ -175,8 +189,21 @@
     }
 
     try {
-      player.setPlaybackRate(targetRate);
-      return { success: true, retryable: false, playbackRate: targetRate };
+      player.setPlaybackRate(playbackRate);
+
+      // YouTube's controller can round custom values to one of its presets.
+      // Apply the exact value to the media element after updating the
+      // controller so fine-grained rates remain in effect.
+      const video =
+        typeof player.querySelector === "function"
+          ? player.querySelector("video.html5-main-video, video")
+          : null;
+      if (video) {
+        video.defaultPlaybackRate = playbackRate;
+        video.playbackRate = playbackRate;
+      }
+
+      return { success: true, retryable: false, playbackRate };
     } catch {
       return { success: false, retryable: true, reason: "player-not-ready" };
     }
@@ -226,10 +253,6 @@
 
       if (message.type === "APPLY_SPEED") {
         const playbackRate = Number(message.playbackRate);
-        if (!ALLOWED_PLAYBACK_RATES.has(playbackRate)) {
-          return;
-        }
-
         const result = applySpeed(playbackRate, document);
         window.postMessage(
           {
@@ -271,6 +294,7 @@
       applyQuality,
       applySpeed,
       chooseQualityLevel,
+      isValidPlaybackRate,
       toQualityEntry,
     };
   }

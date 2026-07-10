@@ -5,6 +5,7 @@ const {
   applyQuality,
   applySpeed,
   chooseQualityLevel,
+  isValidPlaybackRate,
   toQualityEntry,
 } = require("../src/main-world.js");
 
@@ -22,6 +23,34 @@ test("applySpeed uses the YouTube player controller", () => {
     playbackRate: 1.5,
   });
   assert.deepEqual(calls, [1.5]);
+});
+
+test("applySpeed accepts custom rates and rejects invalid rates", () => {
+  const calls = [];
+  const video = { defaultPlaybackRate: 1, playbackRate: 1 };
+  const documentObject = {
+    querySelector: () => ({
+      setPlaybackRate: (rate) => calls.push(rate),
+      querySelector: () => video,
+    }),
+  };
+
+  assert.equal(isValidPlaybackRate(1.35), true);
+  assert.deepEqual(applySpeed("1.35", documentObject), {
+    success: true,
+    retryable: false,
+    playbackRate: 1.35,
+  });
+  assert.deepEqual(applySpeed(1.33, documentObject), {
+    success: false,
+    retryable: false,
+    reason: "invalid-speed",
+  });
+  assert.deepEqual(calls, [1.35]);
+  assert.deepEqual(video, {
+    defaultPlaybackRate: 1.35,
+    playbackRate: 1.35,
+  });
 });
 
 test("applySpeed fails safely when the player controller is unavailable", () => {

@@ -3,8 +3,12 @@ const assert = require("node:assert/strict");
 
 const {
   DEFAULT_SETTINGS,
+  PLAYBACK_RATE_MAX,
+  PLAYBACK_RATE_MIN,
+  PLAYBACK_RATE_STEP,
   calculateProgress,
   getVideoIdentity,
+  isValidPlaybackRate,
   normalizeSettings,
 } = require("../src/core.js");
 
@@ -29,11 +33,36 @@ test("normalizeSettings accepts supported values and rejects invalid ones", () =
   assert.deepEqual(
     normalizeSettings({
       progressBarEnabled: "yes",
-      defaultPlaybackRate: 3,
+      defaultPlaybackRate: 4.5,
       defaultQuality: "best",
     }),
     DEFAULT_SETTINGS,
   );
+});
+
+test("playback rate validation accepts custom values across the supported range", () => {
+  assert.equal(PLAYBACK_RATE_MIN, 0.05);
+  assert.equal(PLAYBACK_RATE_MAX, 4);
+  assert.equal(PLAYBACK_RATE_STEP, 0.05);
+
+  for (const value of [0.05, "0.25", 1, 1.35, "2.2", 4]) {
+    assert.equal(isValidPlaybackRate(value), true, String(value));
+  }
+
+  assert.equal(
+    normalizeSettings({ defaultPlaybackRate: "1.35" }).defaultPlaybackRate,
+    1.35,
+  );
+});
+
+test("playback rate validation rejects out-of-range and off-step values", () => {
+  for (const value of ["", "fast", NaN, Infinity, 0, 0.04, 1.33, 4.05]) {
+    assert.equal(isValidPlaybackRate(value), false, String(value));
+    assert.equal(
+      normalizeSettings({ defaultPlaybackRate: value }).defaultPlaybackRate,
+      DEFAULT_SETTINGS.defaultPlaybackRate,
+    );
+  }
 });
 
 test("calculateProgress clamps played and buffered fractions", () => {

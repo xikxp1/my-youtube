@@ -27,16 +27,10 @@
     defaultQuality: "auto",
   });
 
-  const PLAYBACK_RATES = Object.freeze([
-    0.25,
-    0.5,
-    0.75,
-    1,
-    1.25,
-    1.5,
-    1.75,
-    2,
-  ]);
+  const PLAYBACK_RATE_MIN = 0.05;
+  const PLAYBACK_RATE_MAX = 4;
+  const PLAYBACK_RATE_STEP = 0.05;
+  const PLAYBACK_RATE_SCALE = 100;
 
   const QUALITY_VALUES = Object.freeze([
     "auto",
@@ -51,6 +45,26 @@
     "4320",
   ]);
 
+  function isValidPlaybackRate(value) {
+    const playbackRate = Number(value);
+    if (!Number.isFinite(playbackRate)) {
+      return false;
+    }
+
+    const scaledRate = playbackRate * PLAYBACK_RATE_SCALE;
+    const rateInHundredths = Math.round(scaledRate);
+    const minInHundredths = PLAYBACK_RATE_MIN * PLAYBACK_RATE_SCALE;
+    const maxInHundredths = PLAYBACK_RATE_MAX * PLAYBACK_RATE_SCALE;
+    const stepInHundredths = PLAYBACK_RATE_STEP * PLAYBACK_RATE_SCALE;
+
+    return (
+      Math.abs(scaledRate - rateInHundredths) < 1e-8 &&
+      rateInHundredths >= minInHundredths &&
+      rateInHundredths <= maxInHundredths &&
+      rateInHundredths % stepInHundredths === 0
+    );
+  }
+
   function normalizeSettings(value) {
     const settings = value && typeof value === "object" ? value : {};
     const playbackRate = Number(settings.defaultPlaybackRate);
@@ -61,7 +75,7 @@
         typeof settings.progressBarEnabled === "boolean"
           ? settings.progressBarEnabled
           : DEFAULT_SETTINGS.progressBarEnabled,
-      defaultPlaybackRate: PLAYBACK_RATES.includes(playbackRate)
+      defaultPlaybackRate: isValidPlaybackRate(playbackRate)
         ? playbackRate
         : DEFAULT_SETTINGS.defaultPlaybackRate,
       defaultQuality: QUALITY_VALUES.includes(quality)
@@ -111,10 +125,13 @@
 
   return {
     DEFAULT_SETTINGS,
-    PLAYBACK_RATES,
+    PLAYBACK_RATE_MAX,
+    PLAYBACK_RATE_MIN,
+    PLAYBACK_RATE_STEP,
     QUALITY_VALUES,
     calculateProgress,
     getVideoIdentity,
+    isValidPlaybackRate,
     normalizeSettings,
   };
 });

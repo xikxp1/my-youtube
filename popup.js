@@ -1,14 +1,17 @@
 (function initPopup() {
   "use strict";
 
-  const { DEFAULT_SETTINGS, normalizeSettings } = globalThis.MyYouTubeCore;
+  const { DEFAULT_SETTINGS, isValidPlaybackRate, normalizeSettings } =
+    globalThis.MyYouTubeCore;
   const progressInput = document.querySelector("#progressBarEnabled");
   const speedInput = document.querySelector("#defaultPlaybackRate");
   const qualityInput = document.querySelector("#defaultQuality");
   const status = document.querySelector("#status");
   let statusTimer = 0;
+  let currentSettings = DEFAULT_SETTINGS;
 
   function render(settings) {
+    currentSettings = settings;
     progressInput.checked = settings.progressBarEnabled;
     speedInput.value = String(settings.defaultPlaybackRate);
     qualityInput.value = settings.defaultQuality;
@@ -23,9 +26,20 @@
   }
 
   async function saveSettings() {
+    const playbackRate = Number(speedInput.value);
+    if (
+      speedInput.value.trim() === "" ||
+      !speedInput.checkValidity() ||
+      !isValidPlaybackRate(playbackRate)
+    ) {
+      speedInput.value = String(currentSettings.defaultPlaybackRate);
+      showStatus("Use 0.05× to 4× in 0.05 steps");
+      return;
+    }
+
     const settings = normalizeSettings({
       progressBarEnabled: progressInput.checked,
-      defaultPlaybackRate: Number(speedInput.value),
+      defaultPlaybackRate: playbackRate,
       defaultQuality: qualityInput.value,
     });
 

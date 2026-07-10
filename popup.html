@@ -30,16 +30,18 @@
 
         <label class="field" for="defaultPlaybackRate">
           <span>Default speed</span>
-          <select id="defaultPlaybackRate">
-            <option value="0.25">0.25×</option>
-            <option value="0.5">0.5×</option>
-            <option value="0.75">0.75×</option>
-            <option value="1">Normal (1×)</option>
-            <option value="1.25">1.25×</option>
-            <option value="1.5">1.5×</option>
-            <option value="1.75">1.75×</option>
-            <option value="2">2×</option>
-          </select>
+          <span class="speed-input">
+            <input
+              id="defaultPlaybackRate"
+              type="number"
+              min="0.05"
+              max="4"
+              step="0.05"
+              inputmode="decimal"
+              required
+            />
+            <span aria-hidden="true">×</span>
+          </span>
         </label>
 
         <label class="field" for="defaultQuality">
