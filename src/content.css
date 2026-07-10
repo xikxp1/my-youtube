@@ -1,0 +1,33 @@
+#my-youtube-progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 65;
+  display: block;
+  height: 3px;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+
+#my-youtube-progress[hidden] {
+  display: none;
+}
+
+#my-youtube-progress-buffered,
+#my-youtube-progress-played {
+  position: absolute;
+  inset: 0;
+  transform: scaleX(0);
+  transform-origin: left center;
+  will-change: transform;
+}
+
+#my-youtube-progress-buffered {
+  background: rgb(255 255 255 / 36%);
+}
+
+#my-youtube-progress-played {
+  background: #ff0033;
+}
