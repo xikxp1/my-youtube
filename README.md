@@ -1,7 +1,6 @@
 # My YouTube
 
-A small, dependency-free Chrome extension that adds playback preferences to
-standard YouTube watch pages.
+A small, dependency-free Chrome extension that add minimal extra goodies
 
 ## Features
 
