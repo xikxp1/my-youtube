@@ -4,6 +4,7 @@
   const { DEFAULT_SETTINGS, isValidPlaybackRate, normalizeSettings } =
     globalThis.MyYouTubeCore;
   const progressInput = document.querySelector("#progressBarEnabled");
+  const autoLikeInput = document.querySelector("#autoLikeEnabled");
   const speedInput = document.querySelector("#defaultPlaybackRate");
   const qualityInput = document.querySelector("#defaultQuality");
   const status = document.querySelector("#status");
@@ -13,6 +14,7 @@
   function render(settings) {
     currentSettings = settings;
     progressInput.checked = settings.progressBarEnabled;
+    autoLikeInput.checked = settings.autoLikeEnabled;
     speedInput.value = String(settings.defaultPlaybackRate);
     qualityInput.value = settings.defaultQuality;
   }
@@ -39,6 +41,7 @@
 
     const settings = normalizeSettings({
       progressBarEnabled: progressInput.checked,
+      autoLikeEnabled: autoLikeInput.checked,
       defaultPlaybackRate: playbackRate,
       defaultQuality: qualityInput.value,
     });
@@ -52,7 +55,12 @@
     }
   }
 
-  for (const input of [progressInput, speedInput, qualityInput]) {
+  for (const input of [
+    progressInput,
+    autoLikeInput,
+    speedInput,
+    qualityInput,
+  ]) {
     input.addEventListener("change", saveSettings);
   }
 

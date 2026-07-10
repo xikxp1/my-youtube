@@ -2,12 +2,15 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  AUTO_LIKE_THRESHOLD,
   DEFAULT_SETTINGS,
   PLAYBACK_RATE_MAX,
   PLAYBACK_RATE_MIN,
   PLAYBACK_RATE_STEP,
   calculateProgress,
+  findReactionControls,
   getVideoIdentity,
+  isPastAutoLikeThreshold,
   isValidPlaybackRate,
   normalizeSettings,
 } = require("../src/core.js");
@@ -20,11 +23,13 @@ test("normalizeSettings accepts supported values and rejects invalid ones", () =
   assert.deepEqual(
     normalizeSettings({
       progressBarEnabled: false,
+      autoLikeEnabled: false,
       defaultPlaybackRate: "1.5",
       defaultQuality: 1080,
     }),
     {
       progressBarEnabled: false,
+      autoLikeEnabled: false,
       defaultPlaybackRate: 1.5,
       defaultQuality: "1080",
     },
@@ -96,6 +101,59 @@ test("calculateProgress rejects live and invalid durations", () => {
   });
 });
 
+test("auto-like threshold is strictly beyond half of a finite video", () => {
+  assert.equal(AUTO_LIKE_THRESHOLD, 0.5);
+  assert.equal(isPastAutoLikeThreshold(49.99, 100), false);
+  assert.equal(isPastAutoLikeThreshold(50, 100), false);
+  assert.equal(isPastAutoLikeThreshold(50.01, 100), true);
+  assert.equal(isPastAutoLikeThreshold("51", "100"), true);
+
+  for (const [currentTime, duration] of [
+    [1, 0],
+    [1, Infinity],
+    [NaN, 100],
+    [Infinity, 100],
+  ]) {
+    assert.equal(isPastAutoLikeThreshold(currentTime, duration), false);
+  }
+});
+
+test("reaction controls recognize modern and legacy neutral buttons", () => {
+  for (const layout of ["modern", "legacy"]) {
+    const fixture = createReactionFixture({ layout });
+    assert.deepEqual(findReactionControls(fixture.documentObject), {
+      likeButton: fixture.likeButton,
+      dislikeButton: fixture.dislikeButton,
+      liked: false,
+      disliked: false,
+    });
+  }
+});
+
+test("reaction controls report existing likes and dislikes", () => {
+  const liked = createReactionFixture({ liked: true });
+  assert.equal(findReactionControls(liked.documentObject).liked, true);
+  assert.equal(findReactionControls(liked.documentObject).disliked, false);
+
+  const disliked = createReactionFixture({ disliked: true });
+  assert.equal(findReactionControls(disliked.documentObject).liked, false);
+  assert.equal(findReactionControls(disliked.documentObject).disliked, true);
+});
+
+test("reaction controls fail closed for unavailable or ambiguous buttons", () => {
+  for (const options of [
+    { missing: "like" },
+    { missing: "dislike" },
+    { disabled: "like" },
+    { disabled: "dislike" },
+    { ambiguous: "like" },
+    { ambiguous: "dislike" },
+  ]) {
+    const fixture = createReactionFixture(options);
+    assert.equal(findReactionControls(fixture.documentObject), null);
+  }
+});
+
 test("getVideoIdentity prefers the player video id", () => {
   assert.equal(
     getVideoIdentity(
@@ -115,3 +173,65 @@ test("getVideoIdentity falls back through URL and media source", () => {
   assert.equal(getVideoIdentity("not a url", "", "blob:media"), "media:blob:media");
   assert.equal(getVideoIdentity("not a url", "", ""), "");
 });
+
+function createReactionFixture({
+  layout = "modern",
+  liked = false,
+  disliked = false,
+  disabled = "",
+  ambiguous = "",
+  missing = "",
+} = {}) {
+  const createButton = (kind, pressed) => ({
+    disabled: disabled === kind,
+    getAttribute(name) {
+      if (name === "aria-disabled") {
+        return this.disabled ? "true" : "false";
+      }
+      if (name === "aria-pressed") {
+        return ambiguous === kind ? null : String(pressed);
+      }
+      return null;
+    },
+  });
+  const likeButton = createButton("like", liked);
+  const dislikeButton = createButton("dislike", disliked);
+  const createHost = (button) => ({
+    matches: () => false,
+    querySelector: (selector) => (selector === "button" ? button : null),
+  });
+  const selectors =
+    layout === "legacy"
+      ? {
+          "#segmented-like-button": createHost(likeButton),
+          "#segmented-dislike-button": createHost(dislikeButton),
+        }
+      : {
+          "like-button-view-model": createHost(likeButton),
+          "dislike-button-view-model": createHost(dislikeButton),
+        };
+  if (missing === "like") {
+    delete selectors[layout === "legacy" ? "#segmented-like-button" : "like-button-view-model"];
+  }
+  if (missing === "dislike") {
+    delete selectors[
+      layout === "legacy"
+        ? "#segmented-dislike-button"
+        : "dislike-button-view-model"
+    ];
+  }
+
+  const container = {
+    querySelector: (selector) => selectors[selector] || null,
+  };
+  return {
+    likeButton,
+    dislikeButton,
+    documentObject: {
+      querySelector: (selector) =>
+        selector === "ytd-watch-metadata #actions #top-level-buttons-computed"
+          ? container
+          : null,
+    },
+  };
+}

@@ -23,9 +23,25 @@
 
   const DEFAULT_SETTINGS = Object.freeze({
     progressBarEnabled: true,
+    autoLikeEnabled: true,
     defaultPlaybackRate: 1,
     defaultQuality: "auto",
   });
+
+  const AUTO_LIKE_THRESHOLD = 0.5;
+  const REACTION_CONTAINER_SELECTORS = Object.freeze([
+    "ytd-watch-metadata #actions #top-level-buttons-computed",
+    "ytd-watch-metadata #actions",
+    "#above-the-fold #top-level-buttons-computed",
+  ]);
+  const LIKE_BUTTON_SELECTORS = Object.freeze([
+    "like-button-view-model",
+    "#segmented-like-button",
+  ]);
+  const DISLIKE_BUTTON_SELECTORS = Object.freeze([
+    "dislike-button-view-model",
+    "#segmented-dislike-button",
+  ]);
 
   const PLAYBACK_RATE_MIN = 0.05;
   const PLAYBACK_RATE_MAX = 4;
@@ -75,6 +91,10 @@
         typeof settings.progressBarEnabled === "boolean"
           ? settings.progressBarEnabled
           : DEFAULT_SETTINGS.progressBarEnabled,
+      autoLikeEnabled:
+        typeof settings.autoLikeEnabled === "boolean"
+          ? settings.autoLikeEnabled
+          : DEFAULT_SETTINGS.autoLikeEnabled,
       defaultPlaybackRate: isValidPlaybackRate(playbackRate)
         ? playbackRate
         : DEFAULT_SETTINGS.defaultPlaybackRate,
@@ -123,15 +143,93 @@
     return "";
   }
 
+  function isPastAutoLikeThreshold(currentTime, duration) {
+    const safeCurrentTime = Number(currentTime);
+    const safeDuration = Number(duration);
+    return (
+      Number.isFinite(safeCurrentTime) &&
+      Number.isFinite(safeDuration) &&
+      safeDuration > 0 &&
+      safeCurrentTime / safeDuration > AUTO_LIKE_THRESHOLD
+    );
+  }
+
+  function findButton(container, selectors) {
+    for (const selector of selectors) {
+      const host = container.querySelector(selector);
+      if (!host) {
+        continue;
+      }
+
+      if (typeof host.matches === "function" && host.matches("button")) {
+        return host;
+      }
+
+      const button = host.querySelector("button");
+      if (button) {
+        return button;
+      }
+    }
+
+    return null;
+  }
+
+  function readPressedState(button) {
+    if (
+      !button ||
+      button.disabled === true ||
+      button.getAttribute("aria-disabled") === "true"
+    ) {
+      return null;
+    }
+
+    const pressed = button.getAttribute("aria-pressed");
+    if (pressed === "true") {
+      return true;
+    }
+    if (pressed === "false") {
+      return false;
+    }
+    return null;
+  }
+
+  function findReactionControls(documentObject) {
+    if (!documentObject || typeof documentObject.querySelector !== "function") {
+      return null;
+    }
+
+    for (const selector of REACTION_CONTAINER_SELECTORS) {
+      const container = documentObject.querySelector(selector);
+      if (!container) {
+        continue;
+      }
+
+      const likeButton = findButton(container, LIKE_BUTTON_SELECTORS);
+      const dislikeButton = findButton(container, DISLIKE_BUTTON_SELECTORS);
+      const liked = readPressedState(likeButton);
+      const disliked = readPressedState(dislikeButton);
+      if (liked === null || disliked === null) {
+        continue;
+      }
+
+      return { likeButton, dislikeButton, liked, disliked };
+    }
+
+    return null;
+  }
+
   return {
+    AUTO_LIKE_THRESHOLD,
     DEFAULT_SETTINGS,
     PLAYBACK_RATE_MAX,
     PLAYBACK_RATE_MIN,
     PLAYBACK_RATE_STEP,
     QUALITY_VALUES,
     calculateProgress,
+    findReactionControls,
     getVideoIdentity,
     isValidPlaybackRate,
+    isPastAutoLikeThreshold,
     normalizeSettings,
   };
 });

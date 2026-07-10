@@ -12,10 +12,13 @@
   const {
     DEFAULT_SETTINGS,
     calculateProgress,
+    findReactionControls,
     getVideoIdentity,
+    isPastAutoLikeThreshold,
     normalizeSettings,
   } = globalThis.MyYouTubeCore;
   const MESSAGE_SOURCE = "my-youtube:v1";
+  const AUTO_LIKE_MESSAGE = "CLAIM_AUTO_LIKE";
   const MAX_QUALITY_ATTEMPTS = 8;
 
   const state = {
@@ -35,6 +38,8 @@
     qualityRequestId: "",
     qualityRetryTimer: 0,
     speedFinalizationTimer: 0,
+    autoLikeStatus: "idle",
+    autoLikeVisitToken: 0,
   };
 
   function createProgressBar(player) {
@@ -124,6 +129,9 @@
       state.settings.defaultPlaybackRate,
     );
     state.bar.root.dataset.qualityTarget = state.settings.defaultQuality;
+    state.bar.root.dataset.autoLikeEnabled = String(
+      state.settings.autoLikeEnabled,
+    );
     state.bar.root.dataset.settingsLoaded = String(state.settingsLoaded);
   }
 
@@ -156,6 +164,17 @@
     state.qualityRequestId = "";
   }
 
+  function resetAutoLikeForVisit() {
+    state.autoLikeStatus = "idle";
+    state.autoLikeVisitToken += 1;
+    state.bar?.root.setAttribute("data-auto-like-status", "idle");
+  }
+
+  function setAutoLikeStatus(status) {
+    state.autoLikeStatus = status;
+    state.bar?.root.setAttribute("data-auto-like-status", status);
+  }
+
   function resetDefaultsForVideo(identity) {
     clearQualityRequest();
     window.clearTimeout(state.speedFinalizationTimer);
@@ -165,6 +184,7 @@
     state.speedRequestId = "";
     state.qualityApplied = false;
     state.qualityAttempt = 0;
+    resetAutoLikeForVisit();
   }
 
   function readIdentity() {
@@ -289,6 +309,84 @@
     }
   }
 
+  async function maybeAutoLike() {
+    if (
+      !state.settingsLoaded ||
+      !state.settings.autoLikeEnabled ||
+      !state.video ||
+      !state.identity.startsWith("video:") ||
+      state.autoLikeStatus !== "idle" ||
+      location.pathname !== "/watch" ||
+      isAdPlaying() ||
+      isLiveVideo(state.video) ||
+      !isPastAutoLikeThreshold(state.video.currentTime, state.video.duration)
+    ) {
+      return;
+    }
+
+    const identity = state.identity;
+    const video = state.video;
+    const visitToken = state.autoLikeVisitToken;
+    let controls = findReactionControls(document);
+    if (!controls) {
+      state.bar?.root.setAttribute(
+        "data-auto-like-status",
+        "waiting-for-controls",
+      );
+      return;
+    }
+
+    if (controls.liked || controls.disliked) {
+      setAutoLikeStatus("skipped:reaction-present");
+      return;
+    }
+
+    setAutoLikeStatus("checking");
+    let response;
+    try {
+      response = await chrome.runtime.sendMessage({
+        type: AUTO_LIKE_MESSAGE,
+        videoIdentity: identity,
+      });
+    } catch {
+      if (state.autoLikeVisitToken === visitToken) {
+        setAutoLikeStatus("idle");
+        state.bar?.root.setAttribute(
+          "data-auto-like-status",
+          "waiting-for-background",
+        );
+      }
+      return;
+    }
+
+    if (
+      state.autoLikeVisitToken !== visitToken ||
+      state.identity !== identity ||
+      state.video !== video ||
+      !state.settings.autoLikeEnabled ||
+      location.pathname !== "/watch" ||
+      isAdPlaying() ||
+      isLiveVideo(video) ||
+      !isPastAutoLikeThreshold(video.currentTime, video.duration)
+    ) {
+      return;
+    }
+
+    if (!response?.claimed) {
+      setAutoLikeStatus("skipped:session-history");
+      return;
+    }
+
+    controls = findReactionControls(document);
+    if (!controls || controls.liked || controls.disliked) {
+      setAutoLikeStatus("skipped:state-changed");
+      return;
+    }
+
+    setAutoLikeStatus("clicked");
+    controls.likeButton.click();
+  }
+
   function detachVideo() {
     state.videoEvents?.abort();
     state.videoEvents = null;
@@ -316,6 +414,7 @@
           syncIdentity();
           updateProgress();
           applyDefaults();
+          void maybeAutoLike();
         },
         options,
       );
@@ -325,6 +424,7 @@
       "playing",
       () => {
         applyDefaults({ finalize: true });
+        void maybeAutoLike();
         startAnimation();
       },
       options,
@@ -343,6 +443,7 @@
     syncIdentity();
     updateProgress();
     applyDefaults({ finalize: !video.paused });
+    void maybeAutoLike();
     if (!video.paused && !video.ended) {
       startAnimation();
     }
@@ -388,6 +489,7 @@
       syncIdentity();
       updateProgress();
       applyDefaults({ finalize: Boolean(state.video && !state.video.paused) });
+      void maybeAutoLike();
     }
   }
 
@@ -404,6 +506,8 @@
       previousSettings.defaultPlaybackRate !== state.settings.defaultPlaybackRate;
     const qualityChanged =
       previousSettings.defaultQuality !== state.settings.defaultQuality;
+    const autoLikeChanged =
+      previousSettings.autoLikeEnabled !== state.settings.autoLikeEnabled;
 
     if (speedChanged) {
       state.speedApplied = false;
@@ -412,6 +516,9 @@
       clearQualityRequest();
       state.qualityApplied = false;
       state.qualityAttempt = 0;
+    }
+    if (autoLikeChanged) {
+      resetAutoLikeForVisit();
     }
 
     updateProgress();
@@ -428,6 +535,7 @@
     if (qualityChanged) {
       requestQuality({ force: true });
     }
+    void maybeAutoLike();
   }
 
   window.addEventListener("message", (event) => {
@@ -484,7 +592,10 @@
     }
   });
 
-  document.addEventListener("yt-navigate-finish", scheduleScan);
+  document.addEventListener("yt-navigate-finish", () => {
+    resetAutoLikeForVisit();
+    scheduleScan();
+  });
   document.addEventListener("yt-page-data-updated", scheduleScan);
 
   const observer = new MutationObserver((records) => {
@@ -493,8 +604,18 @@
       return;
     }
 
+    const reactionSelector =
+      "like-button-view-model, dislike-button-view-model, #segmented-like-button, #segmented-dislike-button";
     const touchesPlayer = records.some((record) => {
       if (record.target === state.player || state.player.contains(record.target)) {
+        return true;
+      }
+
+      if (
+        record.target instanceof Element &&
+        (record.target.matches(reactionSelector) ||
+          Boolean(record.target.closest(reactionSelector)))
+      ) {
         return true;
       }
 
@@ -502,8 +623,14 @@
         (node) =>
           node === state.player ||
           (node instanceof Element &&
-            (node.matches("#movie_player, video") ||
-              Boolean(node.querySelector("#movie_player, video")))),
+            (node.matches(
+              `#movie_player, video, button[aria-pressed], ${reactionSelector}, ytd-segmented-like-dislike-button-renderer`,
+            ) ||
+              Boolean(
+                node.querySelector(
+                  `#movie_player, video, button[aria-pressed], ${reactionSelector}, ytd-segmented-like-dislike-button-renderer`,
+                ),
+              ))),
       );
     });
 
@@ -511,7 +638,12 @@
       scheduleScan();
     }
   });
-  observer.observe(document, { childList: true, subtree: true });
+  observer.observe(document, {
+    attributes: true,
+    attributeFilter: ["aria-disabled", "aria-pressed", "disabled"],
+    childList: true,
+    subtree: true,
+  });
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== "local") {
