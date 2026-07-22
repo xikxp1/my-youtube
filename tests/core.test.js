@@ -9,6 +9,7 @@ const {
   PLAYBACK_RATE_STEP,
   calculateProgress,
   findReactionControls,
+  formatVideoTime,
   getVideoIdentity,
   isPastAutoLikeThreshold,
   isValidPlaybackRate,
@@ -23,12 +24,14 @@ test("normalizeSettings accepts supported values and rejects invalid ones", () =
   assert.deepEqual(
     normalizeSettings({
       progressBarEnabled: false,
+      timerEnabled: false,
       autoLikeEnabled: false,
       defaultPlaybackRate: "1.5",
       defaultQuality: 1080,
     }),
     {
       progressBarEnabled: false,
+      timerEnabled: false,
       autoLikeEnabled: false,
       defaultPlaybackRate: 1.5,
       defaultQuality: "1080",
@@ -99,6 +102,14 @@ test("calculateProgress rejects live and invalid durations", () => {
     played: 0,
     buffered: 0,
   });
+});
+
+test("formatVideoTime formats minute and hour durations", () => {
+  assert.equal(formatVideoTime(0), "0:00");
+  assert.equal(formatVideoTime(65.9), "1:05");
+  assert.equal(formatVideoTime(3665), "1:01:05");
+  assert.equal(formatVideoTime(Infinity), "0:00");
+  assert.equal(formatVideoTime(-1), "0:00");
 });
 
 test("auto-like threshold is strictly beyond half of a finite video", () => {

@@ -13,6 +13,7 @@ test("auto-like retries when reaction controls finish loading after a paused see
   let controlsReady = false;
   let likeClicks = 0;
   let observerCallback;
+  const createdElements = [];
 
   class FakeElement {
     constructor(kind = "") {
@@ -20,6 +21,17 @@ test("auto-like retries when reaction controls finish loading after a paused see
       this.dataset = {};
       this.isConnected = true;
       this.style = {};
+      this.textContentWrites = 0;
+      this._textContent = "";
+    }
+
+    get textContent() {
+      return this._textContent;
+    }
+
+    set textContent(value) {
+      this._textContent = String(value);
+      this.textContentWrites += 1;
     }
 
     append() {}
@@ -107,7 +119,11 @@ test("auto-like retries when reaction controls finish loading after a paused see
 
   const documentObject = {
     addEventListener: () => {},
-    createElement: () => new FakeElement(),
+    createElement: () => {
+      const element = new FakeElement();
+      createdElements.push(element);
+      return element;
+    },
     querySelector(selector) {
       if (selector === "#my-youtube-progress") {
         return null;
@@ -181,6 +197,11 @@ test("auto-like retries when reaction controls finish loading after a paused see
   await settleAsyncWork();
   assert.equal(likeClicks, 0);
   assert.deepEqual(messages, []);
+  const time = createdElements.find(
+    (element) => element.id === "my-youtube-time",
+  );
+  assert.equal(time.textContent, "0:51 / 1:40");
+  assert.equal(time.textContentWrites, 1);
 
   controlsReady = true;
   observerCallback([
@@ -196,6 +217,7 @@ test("auto-like retries when reaction controls finish loading after a paused see
   assert.equal(messages[0].type, "CLAIM_AUTO_LIKE");
   assert.equal(messages[0].videoIdentity, "video:test-video");
   assert.equal(likeClicks, 1);
+  assert.equal(time.textContentWrites, 1);
 });
 
 async function settleAsyncWork() {

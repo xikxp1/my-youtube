@@ -36,3 +36,24 @@
 #my-youtube-progress-played {
   background: #ff0033;
 }
+
+#my-youtube-time {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 65;
+  padding: 4px 6px;
+  border-radius: 2px;
+  background: rgb(0 0 0 / 60%);
+  color: #fff;
+  font: 500 14px/1.2 Roboto, Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 80%);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#my-youtube-time[hidden],
+#movie_player.html5-video-player:hover:not(.ytp-autohide) > #my-youtube-time {
+  display: none;
+}

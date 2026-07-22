@@ -13,6 +13,7 @@
     DEFAULT_SETTINGS,
     calculateProgress,
     findReactionControls,
+    formatVideoTime,
     getVideoIdentity,
     isPastAutoLikeThreshold,
     normalizeSettings,
@@ -44,26 +45,34 @@
 
   function createProgressBar(player) {
     const staleBar = document.querySelector("#my-youtube-progress");
+    const staleTime = document.querySelector("#my-youtube-time");
     if (staleBar) {
       staleBar.remove();
+    }
+    if (staleTime) {
+      staleTime.remove();
     }
 
     const root = document.createElement("div");
     const buffered = document.createElement("div");
     const played = document.createElement("div");
+    const time = document.createElement("div");
 
     root.id = "my-youtube-progress";
     root.setAttribute("aria-hidden", "true");
     buffered.id = "my-youtube-progress-buffered";
     played.id = "my-youtube-progress-played";
+    time.id = "my-youtube-time";
+    time.setAttribute("aria-hidden", "true");
     root.append(buffered, played);
-    player.append(root);
+    player.append(root, time);
 
-    return { root, buffered, played };
+    return { root, buffered, played, time };
   }
 
   function removeProgressBar() {
     state.bar?.root.remove();
+    state.bar?.time.remove();
     state.bar = null;
   }
 
@@ -104,20 +113,31 @@
       state.video.duration,
       getBufferedEnd(state.video),
     );
-    const shouldHide =
+    const shouldHideOverlays =
       !state.settingsLoaded ||
-      !state.settings.progressBarEnabled ||
       !progress.valid ||
       isAdPlaying() ||
       isLiveVideo(state.video);
 
-    state.bar.root.hidden = shouldHide;
-    if (shouldHide) {
+    state.bar.root.hidden =
+      shouldHideOverlays || !state.settings.progressBarEnabled;
+    state.bar.time.hidden = shouldHideOverlays || !state.settings.timerEnabled;
+    if (shouldHideOverlays) {
       return;
     }
 
-    state.bar.played.style.transform = `scaleX(${progress.played})`;
-    state.bar.buffered.style.transform = `scaleX(${progress.buffered})`;
+    if (state.settings.progressBarEnabled) {
+      state.bar.played.style.transform = `scaleX(${progress.played})`;
+      state.bar.buffered.style.transform = `scaleX(${progress.buffered})`;
+    }
+    if (state.settings.timerEnabled) {
+      const timeText = `${formatVideoTime(
+        state.video.currentTime,
+      )} / ${formatVideoTime(state.video.duration)}`;
+      if (state.bar.time.textContent !== timeText) {
+        state.bar.time.textContent = timeText;
+      }
+    }
   }
 
   function updateRuntimeMetadata() {
@@ -132,6 +152,7 @@
     state.bar.root.dataset.autoLikeEnabled = String(
       state.settings.autoLikeEnabled,
     );
+    state.bar.root.dataset.timerEnabled = String(state.settings.timerEnabled);
     state.bar.root.dataset.settingsLoaded = String(state.settingsLoaded);
   }
 
@@ -477,7 +498,7 @@
       state.player = player;
       state.bar = createProgressBar(player);
       updateRuntimeMetadata();
-    } else if (!state.bar?.root.isConnected) {
+    } else if (!state.bar?.root.isConnected || !state.bar?.time.isConnected) {
       state.bar = createProgressBar(player);
       updateRuntimeMetadata();
     }
@@ -607,6 +628,14 @@
     const reactionSelector =
       "like-button-view-model, dislike-button-view-model, #segmented-like-button, #segmented-dislike-button";
     const touchesPlayer = records.some((record) => {
+      if (
+        record.target === state.bar?.root ||
+        record.target === state.bar?.time ||
+        state.bar?.root.contains?.(record.target)
+      ) {
+        return false;
+      }
+
       if (record.target === state.player || state.player.contains(record.target)) {
         return true;
       }

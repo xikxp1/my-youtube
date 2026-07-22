@@ -23,6 +23,7 @@
 
   const DEFAULT_SETTINGS = Object.freeze({
     progressBarEnabled: true,
+    timerEnabled: true,
     autoLikeEnabled: true,
     defaultPlaybackRate: 1,
     defaultQuality: "auto",
@@ -91,6 +92,10 @@
         typeof settings.progressBarEnabled === "boolean"
           ? settings.progressBarEnabled
           : DEFAULT_SETTINGS.progressBarEnabled,
+      timerEnabled:
+        typeof settings.timerEnabled === "boolean"
+          ? settings.timerEnabled
+          : DEFAULT_SETTINGS.timerEnabled,
       autoLikeEnabled:
         typeof settings.autoLikeEnabled === "boolean"
           ? settings.autoLikeEnabled
@@ -119,6 +124,26 @@
     const buffered = clamp(Number(bufferedEnd) / safeDuration || 0, played, 1);
 
     return { valid: true, played, buffered };
+  }
+
+  function formatVideoTime(value) {
+    const safeSeconds = Number(value);
+    if (!Number.isFinite(safeSeconds) || safeSeconds < 0) {
+      return "0:00";
+    }
+
+    const totalSeconds = Math.floor(safeSeconds);
+    const seconds = totalSeconds % 60;
+    const totalMinutes = Math.floor(totalSeconds / 60);
+    const minutes = totalMinutes % 60;
+    const hours = Math.floor(totalMinutes / 60);
+    const paddedSeconds = String(seconds).padStart(2, "0");
+
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, "0")}:${paddedSeconds}`;
+    }
+
+    return `${minutes}:${paddedSeconds}`;
   }
 
   function getVideoIdentity(url, explicitVideoId, mediaSource) {
@@ -227,6 +252,7 @@
     QUALITY_VALUES,
     calculateProgress,
     findReactionControls,
+    formatVideoTime,
     getVideoIdentity,
     isValidPlaybackRate,
     isPastAutoLikeThreshold,
