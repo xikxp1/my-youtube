@@ -5,6 +5,9 @@
   "description": "Chrome extension for persistent YouTube playback preferences.",
   "scripts": {
     "test": "node --test",
+    "build": "node scripts/build.js",
+    "build:chrome": "node scripts/build.js chrome",
+    "build:firefox": "node scripts/build.js firefox",
     "check": "node --check src/core.js && node --check src/content.js && node --check src/main-world.js && node --check src/background.js && node --check popup.js && node --test"
   }
 }

@@ -10,3 +10,15 @@ A small, dependency-free Chrome extension that add minimal extra goodies
 - A preferred video quality with closest-lower fallback.
 - Optional auto-liking after the playhead passes 50%, without overriding an
   existing like or dislike and without repeating within the browser session.
+
+## Building
+
+```sh
+npm run build          # Chrome + Firefox
+npm run build:firefox  # Firefox only
+```
+
+The packages are written to `dist/<browser>/`, and the zips go to
+`dist/my-youtube-<browser>-<version>.zip`. The Firefox build replaces the
+background service worker with `background.scripts` and adds
+`browser_specific_settings.gecko` (Firefox 128 or later).
